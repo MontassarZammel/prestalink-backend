@@ -16,7 +16,6 @@ if (dbUrl) {
     password: u.password,
     database: u.pathname.replace('/', ''),
   };
-  console.log('🔍 DB via URL:', u.hostname, u.port);
 } else {
   dbConfig = {
     host: process.env.DB_HOST || 'localhost',
@@ -25,7 +24,6 @@ if (dbUrl) {
     password: process.env.DB_PASSWORD || 'root123',
     database: process.env.DB_NAME || 'prestalink',
   };
-  console.log('🔍 DB via vars:', dbConfig.host, dbConfig.port);
 }
 
 const pool = mysql.createPool({
@@ -44,7 +42,7 @@ const testConnection = async () => {
     console.log('✅ MySQL connected successfully');
     conn.release();
   } catch (error) {
-    console.error('❌ MySQL connection failed:', error.code, error.message, error);
+    console.error('❌ MySQL connection failed:', error.message);
     process.exit(1);
   }
 };
