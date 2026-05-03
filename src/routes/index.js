@@ -7,6 +7,9 @@ const providerController = require('../controllers/providerController');
 const quoteController = require('../controllers/quoteController');
 const paymentController = require('../controllers/paymentController');
 const chatController = require('../controllers/chatController');
+const packageController = require('../controllers/packageController');
+const availabilityController = require('../controllers/availabilityController');
+const quoteRequestController = require('../controllers/quoteRequestController');
 const { authenticate, requireAdmin, optionalAuth } = require('../middleware/auth');
 const { pool } = require('../config/database');
 
@@ -42,6 +45,24 @@ router.get('/quotes/admin', authenticate, requireAdmin, quoteController.getAllQu
 router.get('/quotes/:id/pdf', quoteController.generatePDF);
 router.get('/quotes/:id/summary', quoteController.getQuoteSummary);
 router.patch('/quotes/:id/status', authenticate, requireAdmin, quoteController.updateStatus);
+
+// ── PACKAGES ──────────────────────────────────────────────────
+router.get('/providers/:providerId/packages', packageController.getByProvider);
+router.get('/providers/:providerId/packages/admin', authenticate, requireAdmin, packageController.getAll);
+router.post('/providers/:providerId/packages', authenticate, requireAdmin, packageController.create);
+router.put('/providers/:providerId/packages/:id', authenticate, requireAdmin, packageController.update);
+router.delete('/providers/:providerId/packages/:id', authenticate, requireAdmin, packageController.delete);
+
+// ── AVAILABILITY ───────────────────────────────────────────────
+router.get('/providers/:providerId/availability', availabilityController.getByProvider);
+router.post('/providers/:providerId/availability', authenticate, requireAdmin, availabilityController.setDate);
+router.post('/providers/:providerId/availability/bulk', authenticate, requireAdmin, availabilityController.setMultiple);
+
+// ── QUOTE REQUESTS ─────────────────────────────────────────────
+router.post('/quote-requests', optionalAuth, quoteRequestController.create);
+router.get('/quote-requests/my', authenticate, quoteRequestController.getMy);
+router.get('/quote-requests/admin', authenticate, requireAdmin, quoteRequestController.getAll);
+router.patch('/quote-requests/:id/status', authenticate, requireAdmin, quoteRequestController.updateStatus);
 
 // ── PAYMENTS ──────────────────────────────────────────────────
 router.post('/payments/test/initiate', optionalAuth, paymentController.initiateTest);
