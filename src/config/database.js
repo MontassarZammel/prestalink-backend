@@ -3,20 +3,33 @@ require('dotenv').config();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
-console.log('🔍 DB config:', {
-  host: process.env.DB_HOST,
-  port: process.env.DB_PORT,
-  user: process.env.DB_USER,
-  db: process.env.DB_NAME,
-  NODE_ENV: process.env.NODE_ENV,
-});
+// Support DATABASE_URL (Railway) or individual vars
+let dbConfig;
+const dbUrl = process.env.DATABASE_URL || process.env.MYSQL_URL || process.env.MYSQL_PUBLIC_URL;
+
+if (dbUrl) {
+  const u = new URL(dbUrl);
+  dbConfig = {
+    host: u.hostname,
+    port: Number(u.port) || 3306,
+    user: u.username,
+    password: u.password,
+    database: u.pathname.replace('/', ''),
+  };
+  console.log('🔍 DB via URL:', u.hostname, u.port);
+} else {
+  dbConfig = {
+    host: process.env.DB_HOST || 'localhost',
+    port: Number(process.env.DB_PORT) || 3306,
+    user: process.env.DB_USER || 'root',
+    password: process.env.DB_PASSWORD || 'root123',
+    database: process.env.DB_NAME || 'prestalink',
+  };
+  console.log('🔍 DB via vars:', dbConfig.host, dbConfig.port);
+}
 
 const pool = mysql.createPool({
-  host: process.env.DB_HOST || 'localhost',
-  port: Number(process.env.DB_PORT) || 3306,
-  user: process.env.DB_USER || 'root',
-  password: process.env.DB_PASSWORD || 'root123',
-  database: process.env.DB_NAME || 'prestalink',
+  ...dbConfig,
   waitForConnections: true,
   connectionLimit: 10,
   queueLimit: 0,
