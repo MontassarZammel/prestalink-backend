@@ -3,6 +3,14 @@ require('dotenv').config();
 
 const isProduction = process.env.NODE_ENV === 'production';
 
+console.log('🔍 DB config:', {
+  host: process.env.DB_HOST,
+  port: process.env.DB_PORT,
+  user: process.env.DB_USER,
+  db: process.env.DB_NAME,
+  NODE_ENV: process.env.NODE_ENV,
+});
+
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',
   port: Number(process.env.DB_PORT) || 3306,
