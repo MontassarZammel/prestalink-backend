@@ -63,6 +63,7 @@ router.post('/quote-requests', optionalAuth, quoteRequestController.create);
 router.get('/quote-requests/my', authenticate, quoteRequestController.getMy);
 router.get('/quote-requests/admin', authenticate, requireAdmin, quoteRequestController.getAll);
 router.patch('/quote-requests/:id/status', authenticate, requireAdmin, quoteRequestController.updateStatus);
+router.post('/quote-requests/:id/generate-quote', authenticate, requireAdmin, quoteRequestController.generateQuote);
 
 // ── PAYMENTS ──────────────────────────────────────────────────
 router.post('/payments/test/initiate', optionalAuth, paymentController.initiateTest);
