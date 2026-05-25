@@ -99,8 +99,11 @@ exports.create = async (req, res) => {
       `INSERT INTO providers (type_id, name, slug, description, short_description, email, phone, website, address, city, governorate,
        latitude, longitude, logo, cover_image, price_min, price_max, is_featured, meta_title, meta_description)
        VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-      [type_id, name, slug, description, short_description, email, phone, website, address, city, governorate,
-       latitude, longitude, logo, cover_image, price_min, price_max, is_featured || 0, meta_title || name, meta_description || short_description]
+      [type_id, name, slug, description || null, short_description || null, email || null, phone || null,
+       website || null, address || null, city || null, governorate || null,
+       latitude || null, longitude || null, logo || null, cover_image || null,
+       price_min || null, price_max || null, is_featured || 0,
+       meta_title || name, meta_description || short_description || null]
     );
     const [created] = await pool.execute('SELECT * FROM providers WHERE id = ?', [result.insertId]);
     res.status(201).json({ success: true, data: created[0] });
@@ -115,8 +118,8 @@ exports.update = async (req, res) => {
     const { id } = req.params;
     const fields = [];
     const values = [];
-    const allowed = ['type_id','name','description','short_description','email','phone','website','address',
-      'city','governorate','latitude','longitude','logo','cover_image','price_min','price_max','is_featured','is_active','meta_title','meta_description'];
+    const allowed = ['type_id','name','description','short_description','email','phone','whatsapp','website','address',
+      'city','governorate','latitude','longitude','logo','cover_image','price_min','price_max','is_featured','is_active','meta_title','meta_description','standard_fee','commission_percentage'];
     for (const key of allowed) {
       if (req.body[key] !== undefined) {
         fields.push(`${key} = ?`);
@@ -177,7 +180,7 @@ exports.getAllAdmin = async (req, res) => {
     const offsetInt = (parseInt(page, 10) - 1) * limitInt;
     const [countRows] = await pool.execute(`SELECT COUNT(*) as total FROM providers p WHERE ${where.join(' AND ')}`, params);
     const [rows] = await pool.execute(
-      `SELECT p.*, pt.name as type_name FROM providers p LEFT JOIN provider_types pt ON p.type_id = pt.id WHERE ${where.join(' AND ')} ORDER BY p.created_at DESC LIMIT ${limitInt} OFFSET ${offsetInt}`, params
+      `SELECT p.*, pt.name as type_name, pt.slug as type_slug FROM providers p LEFT JOIN provider_types pt ON p.type_id = pt.id WHERE ${where.join(' AND ')} ORDER BY p.created_at DESC LIMIT ${limitInt} OFFSET ${offsetInt}`, params
     );
     res.json({ success: true, data: rows, pagination: { total: countRows[0].total, page: parseInt(page, 10), limit: limitInt } });
   } catch (error) {

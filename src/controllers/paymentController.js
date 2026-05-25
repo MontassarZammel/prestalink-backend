@@ -17,7 +17,21 @@ const markPaymentDone = async (paymentRef) => {
   const p = payments[0];
   await pool.execute('UPDATE quotes SET payment_status = "partial" WHERE id = ?', [p.quote_id]);
   const [quotes] = await pool.execute('SELECT * FROM quotes WHERE id = ?', [p.quote_id]);
-  if (quotes.length) mailer.sendPaymentConfirmation(quotes[0], p).catch(() => {});
+  if (!quotes.length) return;
+
+  const quote = quotes[0];
+
+  // Paiement confirmé → le jour passe de 'pending' à 'reserved'
+  if (quote.event_date && quote.provider_id) {
+    const dateStr = String(quote.event_date).slice(0, 10);
+    await pool.execute(
+      'INSERT INTO provider_availability (provider_id, date, status, note) VALUES (?,?,?,?) ON DUPLICATE KEY UPDATE status=?, note=?',
+      [quote.provider_id, dateStr, 'reserved', `Acompte payé — Devis ${quote.quote_number}`,
+       'reserved', `Acompte payé — Devis ${quote.quote_number}`]
+    ).catch(() => {});
+  }
+
+  mailer.sendPaymentConfirmation(quote, p).catch(() => {});
 };
 
 // ===================== KONNECT =====================
@@ -157,6 +171,97 @@ exports.paymeeWebhook = async (req, res) => {
     console.error('Paymee webhook error:', error.message);
     res.status(500).json({ success: false });
   }
+};
+
+// ===================== CLICTOPAY =====================
+exports.initiateClictopay = async (req, res) => {
+  try {
+    const { quote_id } = req.body;
+    const [quotes] = await pool.execute(
+      'SELECT * FROM quotes WHERE id = ? AND payment_enabled = 1',
+      [quote_id]
+    );
+    if (!quotes.length)
+      return res.status(404).json({ success: false, message: 'Devis non trouvé ou paiement non activé' });
+
+    const quote  = quotes[0];
+    const amount = Math.round(Number(quote.advance_payment) * 1000); // millimes
+    const orderNumber = `MW-${quote.quote_number}-${Date.now()}`;
+
+    const baseUrl = process.env.CLICTOPAY_API_URL || 'https://test.clictopay.com/payment/rest';
+    const params  = new URLSearchParams({
+      userName:    process.env.CLICTOPAY_USERNAME,
+      password:    process.env.CLICTOPAY_PASSWORD,
+      orderNumber,
+      amount:      String(amount),
+      currency:    '788',
+      returnUrl:   `${process.env.BACKEND_URL}/api/payments/clictopay/return`,
+      failUrl:     `${process.env.BACKEND_URL}/api/payments/clictopay/fail`,
+      language:    'fr',
+      description: `Acompte devis ${quote.quote_number} - MyWedding`,
+    });
+
+    const response = await axios.post(
+      `${baseUrl}/register.do`,
+      params.toString(),
+      { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
+    );
+
+    const { orderId, formUrl, errorCode, errorMessage } = response.data;
+    if (errorCode && String(errorCode) !== '0') throw new Error(errorMessage || `Clictopay error ${errorCode}`);
+    if (!orderId || !formUrl) throw new Error('Clictopay did not return orderId/formUrl');
+
+    await pool.execute(
+      'INSERT INTO payments (quote_id, payment_ref, gateway, amount, status, payment_type) VALUES (?,?,?,?,?,?)',
+      [quote_id, orderId, 'clictopay', quote.advance_payment, 'pending', 'advance']
+    );
+
+    res.json({ success: true, data: { payUrl: formUrl, paymentRef: orderId } });
+  } catch (error) {
+    console.error('Clictopay initiate error:', error.response?.data || error.message);
+    res.status(500).json({ success: false, message: 'Erreur initialisation paiement Clictopay' });
+  }
+};
+
+exports.clictopayReturn = async (req, res) => {
+  const { orderId } = req.query;
+  if (!orderId) return res.redirect(`${process.env.FRONTEND_URL}/payment/failed`);
+
+  try {
+    const [payments] = await pool.execute('SELECT quote_id FROM payments WHERE payment_ref = ?', [orderId]);
+    const quoteId = payments[0]?.quote_id;
+
+    const baseUrl = process.env.CLICTOPAY_API_URL || 'https://test.clictopay.com/payment/rest';
+    const statusParams = new URLSearchParams({
+      userName: process.env.CLICTOPAY_USERNAME,
+      password: process.env.CLICTOPAY_PASSWORD,
+      orderId,
+      language: 'fr',
+    });
+
+    const statusRes  = await axios.get(`${baseUrl}/getOrderStatus.do?${statusParams.toString()}`);
+    const orderStatus = statusRes.data?.orderStatus; // 2 = approved/paid
+
+    if (orderStatus === 2 || orderStatus === '2') {
+      await markPaymentDone(orderId);
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/success?quote=${quoteId}`);
+    } else {
+      return res.redirect(`${process.env.FRONTEND_URL}/payment/failed?quote=${quoteId}`);
+    }
+  } catch (err) {
+    console.error('Clictopay return error:', err.message);
+    res.redirect(`${process.env.FRONTEND_URL}/payment/failed`);
+  }
+};
+
+exports.clictopayFail = async (req, res) => {
+  const { orderId } = req.query;
+  let quoteId;
+  if (orderId) {
+    const [payments] = await pool.execute('SELECT quote_id FROM payments WHERE payment_ref = ?', [orderId]).catch(() => [[]]);
+    quoteId = payments[0]?.quote_id;
+  }
+  res.redirect(`${process.env.FRONTEND_URL}/payment/failed${quoteId ? `?quote=${quoteId}` : ''}`);
 };
 
 // ===================== TEST (dev only) =====================

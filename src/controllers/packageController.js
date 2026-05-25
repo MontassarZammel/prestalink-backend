@@ -65,3 +65,48 @@ exports.delete = async (req, res) => {
     res.status(500).json({ success: false, message: 'Erreur serveur' });
   }
 };
+
+// ── ADMIN — upsert fixed 5/7/10 traiteur packs ───────────────
+
+exports.saveTraiteurPacks = async (req, res) => {
+  try {
+    const { packages } = req.body;
+    const { providerId } = req.params;
+
+    for (const pkg of packages) {
+      const { pieces_count, price_per_person, discount_percentage, is_active } = pkg;
+      const name = `${pieces_count} pièces/personne`;
+      const sortOrder = pieces_count === 5 ? 1 : pieces_count === 7 ? 2 : 3;
+
+      const [existing] = await pool.execute(
+        'SELECT id FROM provider_packages WHERE provider_id = ? AND pieces_count = ?',
+        [providerId, pieces_count]
+      );
+
+      const fixedItemsJson = pkg.fixed_items && Array.isArray(pkg.fixed_items) && pkg.fixed_items.length
+        ? JSON.stringify(pkg.fixed_items)
+        : null;
+
+      if (existing.length) {
+        await pool.execute(
+          'UPDATE provider_packages SET price_per_person=?, discount_percentage=?, is_active=?, name=?, fixed_items=? WHERE id=?',
+          [price_per_person || 0, discount_percentage || 0, is_active ? 1 : 0, name, fixedItemsJson, existing[0].id]
+        );
+      } else {
+        await pool.execute(
+          'INSERT INTO provider_packages (provider_id, name, pieces_count, price_per_person, discount_percentage, is_active, sort_order, fixed_items) VALUES (?,?,?,?,?,?,?,?)',
+          [providerId, name, pieces_count, price_per_person || 0, discount_percentage || 0, is_active ? 1 : 0, sortOrder, fixedItemsJson]
+        );
+      }
+    }
+
+    const [rows] = await pool.execute(
+      'SELECT * FROM provider_packages WHERE provider_id = ? ORDER BY sort_order ASC, pieces_count ASC',
+      [providerId]
+    );
+    res.json({ success: true, data: rows });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ success: false, message: 'Erreur serveur' });
+  }
+};
