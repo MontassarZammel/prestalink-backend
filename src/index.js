@@ -105,6 +105,9 @@ const runMigrations = async () => {
     `CREATE TABLE IF NOT EXISTS payments (id INT AUTO_INCREMENT PRIMARY KEY, quote_id INT NOT NULL, payment_ref VARCHAR(255) NOT NULL, gateway VARCHAR(50) NOT NULL, amount DECIMAL(10,2) NOT NULL, status ENUM('pending','completed','failed') DEFAULT 'pending', payment_type VARCHAR(50) NULL, paid_at TIMESTAMP NULL, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (quote_id) REFERENCES quotes(id) ON DELETE CASCADE)`,
     `CREATE TABLE IF NOT EXISTS conversations (id INT AUTO_INCREMENT PRIMARY KEY, client_id INT NULL, visitor_session_id VARCHAR(255) NULL, client_name VARCHAR(255) NULL, client_email VARCHAR(255) NULL, subject VARCHAR(500) NULL, status ENUM('open','closed') DEFAULT 'open', created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)`,
     `CREATE TABLE IF NOT EXISTS messages (id INT AUTO_INCREMENT PRIMARY KEY, conversation_id INT NOT NULL, sender_role ENUM('client','admin','visitor') NOT NULL, content TEXT NOT NULL, is_read TINYINT(1) DEFAULT 0, created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP, FOREIGN KEY (conversation_id) REFERENCES conversations(id) ON DELETE CASCADE)`,
+    `ALTER TABLE provider_types ADD COLUMN is_active TINYINT(1) DEFAULT 1`,
+    `ALTER TABLE provider_types ADD COLUMN display_order INT DEFAULT 0`,
+    `ALTER TABLE provider_types ADD COLUMN image VARCHAR(500) NULL`,
     // ── END BASE SCHEMA ──────────────────────────────────────────
     `ALTER TABLE quote_requests ADD COLUMN group_id VARCHAR(36) NULL`,
     `ALTER TABLE quote_requests ADD COLUMN description TEXT NULL`,
