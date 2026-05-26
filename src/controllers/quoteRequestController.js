@@ -105,8 +105,8 @@ exports.getAll = async (req, res) => {
   try {
     const [rows] = await pool.execute(
       `SELECT qr.*, p.name as provider_name, p.slug as provider_slug,
-              p.price_min, p.price_max,
-              pt.discount_percentage as provider_discount,
+              p.price_min, p.price_max, p.standard_fee,
+              pt.discount_percentage as provider_discount, pt.slug as type_slug,
               pp.name as package_name, pp.price_per_person
        FROM quote_requests qr
        LEFT JOIN providers p ON qr.provider_id = p.id
