@@ -45,10 +45,9 @@ exports.middleware = upload.single('image');
 exports.uploadImage = (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'Aucun fichier' });
 
-  // Local disk fallback
+  // Local disk fallback — use relative URL so Vite proxy handles it in dev
   if (!hasCloudinary) {
-    const base = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 4000}`;
-    return res.json({ success: true, url: `${base}/uploads/${req.file.filename}` });
+    return res.json({ success: true, url: `/uploads/${req.file.filename}` });
   }
 
   // Cloudinary upload
