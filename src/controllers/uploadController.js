@@ -1,15 +1,38 @@
 const multer = require('multer');
-const { v2: cloudinary } = require('cloudinary');
-const streamifier = require('streamifier');
+const path = require('path');
+const fs = require('fs');
 
-cloudinary.config({
-  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
-  api_key:    process.env.CLOUDINARY_API_KEY,
-  api_secret: process.env.CLOUDINARY_API_SECRET,
-});
+const hasCloudinary = process.env.CLOUDINARY_CLOUD_NAME && process.env.CLOUDINARY_API_KEY && process.env.CLOUDINARY_API_SECRET;
+
+// ── CLOUDINARY (production) ───────────────────────────────────
+let cloudinary, streamifier;
+if (hasCloudinary) {
+  cloudinary = require('cloudinary').v2;
+  streamifier = require('streamifier');
+  cloudinary.config({
+    cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+    api_key:    process.env.CLOUDINARY_API_KEY,
+    api_secret: process.env.CLOUDINARY_API_SECRET,
+  });
+}
+
+// ── MULTER ────────────────────────────────────────────────────
+const storage = hasCloudinary
+  ? multer.memoryStorage()
+  : multer.diskStorage({
+      destination: (req, file, cb) => {
+        const dir = path.join(__dirname, '..', '..', 'uploads');
+        fs.mkdirSync(dir, { recursive: true });
+        cb(null, dir);
+      },
+      filename: (req, file, cb) => {
+        const ext = path.extname(file.originalname);
+        cb(null, `${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
+      },
+    });
 
 const upload = multer({
-  storage: multer.memoryStorage(),
+  storage,
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype.startsWith('image/')) cb(null, true);
@@ -22,6 +45,13 @@ exports.middleware = upload.single('image');
 exports.uploadImage = (req, res) => {
   if (!req.file) return res.status(400).json({ success: false, message: 'Aucun fichier' });
 
+  // Local disk fallback
+  if (!hasCloudinary) {
+    const base = process.env.BACKEND_URL || `http://localhost:${process.env.PORT || 4000}`;
+    return res.json({ success: true, url: `${base}/uploads/${req.file.filename}` });
+  }
+
+  // Cloudinary upload
   const uploadStream = cloudinary.uploader.upload_stream(
     { folder: 'prestalink', resource_type: 'image' },
     (error, result) => {
@@ -32,6 +62,5 @@ exports.uploadImage = (req, res) => {
       res.json({ success: true, url: result.secure_url });
     }
   );
-
   streamifier.createReadStream(req.file.buffer).pipe(uploadStream);
 };
